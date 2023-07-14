@@ -3,7 +3,7 @@
 
 ## Autores: 
 
-- Érica Ribeiro F. dos Santos - 11836351
+- Érica Ribeiro F. dos Santos — 11836351
 
 ### Sistema utilizado: 
 > Manjaro Linux 21.2.6
