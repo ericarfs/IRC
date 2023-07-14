@@ -1,12 +1,14 @@
-# Projeto IRC
+# Projeto IRC - Rede de Computadores
 ### Projeto da implementação de 
 
-* __Estudantes__:
+## Autores: 
 
-  Érica Ribeiro F. dos Santos - nUsp: 11836351
-  
-  dcsdsdsd
+- Érica Ribeiro F. dos Santos - 11836351
 
-* __Disciplina__: SSC0142 - Redes de Computadores
+### Sistema utilizado: 
+> Manjaro Linux 21.2.6
 
-* __Docente__: Kalinka R. L. J. Castelo Branco
+### Compilador: 
+> gcc version 11.2.0
+> 
+> Para testar o código, compile com o comando "make all". Em um terminal, digite "./server" para inicializar o servidor; em outro terminal, digite "./client" para se conectar como cliente e começar a enviar mensagens.
