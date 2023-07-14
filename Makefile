@@ -4,3 +4,10 @@ compile:
 FLAGS    = -L /lib64
 LIBS     = -lusb-1.0 -l pthread
 
+
+serv:
+	./server
+
+cli:
+	./client
+
