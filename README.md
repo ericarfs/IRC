@@ -11,4 +11,8 @@
 ### Compilador: 
 > gcc version 11.2.0
 > 
-> Para testar o código, compile com o comando "make all". Em um terminal, digite "./server" para inicializar o servidor; em outro terminal, digite "./client" para se conectar como cliente e começar a enviar mensagens.
+> Para testar o código, compile com o comando "make".
+> 
+> Em um terminal, digite "make serv" para inicializar o servidor;
+> 
+> Em outro terminal, digite "make cli" para se conectar como cliente e começar a enviar mensagens.
