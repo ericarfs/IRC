@@ -14,7 +14,7 @@
 
 volatile sig_atomic_t flag = 0;
 int sockfd = 0;
-char name[52];
+char name[51];
 
 
 //Função que atualiza a tela
@@ -116,25 +116,72 @@ int main(int argc, char **argv){
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sockfd < 0){
-    perror("[-]Socket error");
-    exit(1);
-  }
-  printf("[+]TCP server socket created.\n");
+    	perror("[-]Socket error");
+    	exit(1);
+  	}
+  	printf("[+]TCP server socket created.\n");
 
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = inet_addr(ip);
-  addr.sin_port = port;
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = inet_addr(ip);
+	addr.sin_port = port;
 
 
-  // Conectar ao servidor
-  int err = connect(sockfd, (struct sockaddr *)&addr, sizeof(addr));
-  if (err == -1) {
-		printf("Não foi possível se concectar ao servidor\n");
-		return EXIT_FAILURE;
+	// Conectar ao servidor
+	int err = connect(sockfd, (struct sockaddr *)&addr, sizeof(addr));
+	if (err == -1) {
+			printf("Não foi possível se concectar ao servidor\n");
+			return EXIT_FAILURE;
+	}
+
+	char apelido[100];
+	while(1){
+		printf("Digite '/nickname' e informe o seu apelido (sem espaços) > ");
+
+		fgets(apelido, 100, stdin);
+		str_trim_lf(apelido, strlen(apelido));
+
+		char aux[10];
+		char nick[51];
+		char *token;
+		token = strtok(apelido, " ");
+		sprintf(aux, "%s", token);
+
+		token = strtok(NULL, "");
+		sprintf(nick, "%s", token);
+		str_trim_lf(nick, strlen(nick));
+
+
+		if (strcmp(aux, "/nickname") != 0){
+			continue;
+		}
+		else if (strcmp(nick, "(null)") ==0||strlen(nick) < 2 || strlen(nick)>50){
+			printf("Apelido muito grande ou muito pequeno! \n");
+			continue;
+		}
+
+		send(sockfd, nick, strlen(nick), 0);
+
+		char resp[6];
+		// Receber resposta 
+		recv(sockfd, resp, 6, 0);
+
+		if (strcmp(resp, "error") == 0){
+			printf("Apelido inválido! \n");
+		}
+		else{
+			break;
+		}
+
+		bzero(resp, 6);
+		memset(&aux, '\0', 10);
+		memset(&nick, '\0', 51);
+
+		
 	}
 
 	// Receber apelido 
-	recv(sockfd, name, 32, 0);
+	recv(sockfd, name, 51, 0);
+	
 
 	printf(">>> SALA DE BATE PAPO <<<\n");
 

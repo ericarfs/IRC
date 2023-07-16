@@ -12,7 +12,7 @@
 #include <signal.h>
 #include <time.h>
 
-#define MAX_CLIENTS 3
+#define MAX_CLIENTS 100
 #define BUFFER_SZ 100000
 #define BUFFER_MAX 100 //tamanho max da mensagem
 
@@ -25,7 +25,7 @@ typedef struct{
 	struct sockaddr_in address;
 	int sockfd;
 	int uid;
-	char name[32];
+	char name[51];
 } client_t;
 
 client_t *clients[MAX_CLIENTS];
@@ -95,22 +95,83 @@ void send_message(char *s, int uid){
 }
 
 
+//Enviar mensagens para um cliente específico
+void send_private_message(char *s, char *nome){
+	pthread_mutex_lock(&clients_mutex);
+
+
+	char buff_aux[BUFFER_SZ+54];
+	char msg_aux[BUFFER_SZ+54];
+	char apelido[52];
+
+	//Separar o apelido do destinatario da mensagem e a mensagem enviada
+	char *token;
+
+	token = strtok(s, " "); 
+	sprintf(apelido, "%s", token); //apelido
+	token = strtok(NULL, "");
+	sprintf(buff_aux, "%s", token); //mensagem
+
+	//Se a mensagem estiver vazia, substitui '(null)' por vazio
+	if (strcmp(buff_aux, "(null)") ==0){
+		bzero(buff_aux, BUFFER_SZ);
+	}
+	
+
+	sprintf(msg_aux, "%s: %s\n", nome, buff_aux);
+
+
+	for(int i=0; i<MAX_CLIENTS; ++i){
+		if(clients[i]){
+			//colocar '@' no inicio do apelido do cliente para fazer a comparação
+			char apelido_aux[52];
+			apelido_aux[0] = '@';
+			sprintf(&apelido_aux[1], "%s", clients[i]->name);
+
+			if(strcmp(apelido_aux, apelido) == 0){
+				if(write(clients[i]->sockfd, msg_aux, strlen(msg_aux)) < 0){
+					perror("ERRO: Falha ao enviar mensagem!");
+					break;
+				}
+				
+			}
+		}
+	}
+
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+
+//Função que verifica se o apelido escolhido está disponível
+int checkApelido(char *s){
+	for(int i=0; i<MAX_CLIENTS; ++i){
+		if(clients[i]){
+			if(strcmp(clients[i]->name,s)==0){
+				return 0;				
+			}
+		}
+	}
+	return 1;
+}
+
+
 //Função que lida com a comunicação com cada cliente
 void *handle_client(void *arg){
-	char buff_aux[BUFFER_SZ+34];
+	char buff_aux[BUFFER_SZ+54];
 	char buff_out[BUFFER_SZ];
 	int leave_flag = 0;
 
 	cli_count++;
 	client_t *cli = (client_t *)arg;
 
-	sprintf(cli->name, "Client_%d", cli->uid);
 	send(cli->sockfd, cli->name, strlen(cli->name), 0);
 	sprintf(buff_out, "%s entrou no chat!\n", cli->name);
 	printf("%s", buff_out);
 	send_message(buff_out, cli->uid);
 
+
 	bzero(buff_out, BUFFER_SZ);
+
 	while(1){
 		if (leave_flag) {
 			break;
@@ -123,15 +184,16 @@ void *handle_client(void *arg){
 				send(cli->sockfd, buff_out, 5, 0);
 			}
 			else if(strlen(buff_out) > 0){
-				int message_len;
-				message_len = strlen(buff_out);
+				if (buff_out[0]=='@'){
+					send_private_message(buff_out, cli->name);
+				}
+				else{
+					printf("%s: %s\n", cli->name, buff_out);
 
-				printf("tamanho: %d\n",message_len);
-
-				printf("%s: %s\n", cli->name, buff_out);
-
-				sprintf(buff_aux, "%s: %s\n", cli->name, buff_out);
-				send_message(buff_aux, cli->uid);
+					sprintf(buff_aux, "%s: %s\n", cli->name, buff_out);
+					send_message(buff_aux, cli->uid);
+				}
+				
 
 				bzero(buff_aux, BUFFER_SZ);
 
@@ -208,6 +270,9 @@ int main(int argc, char **argv){
 
 	printf(">>> SALA DE BATE PAPO <<<\n");
 
+	char recv_apelido[51];
+	bzero(recv_apelido, 51);
+
 	while(1){
 		socklen_t clilen = sizeof(cli_addr);
 		connfd = accept(server_sock, (struct sockaddr*)&cli_addr, &clilen);
@@ -218,12 +283,37 @@ int main(int argc, char **argv){
 			close(connfd);
 			continue;
 		}
+		else{
+			int apCheck = 0;
+			
+			char resp[51];
+			do{
+				
+				recv(connfd, recv_apelido, BUFFER_MAX, 0);
+				apCheck = checkApelido(recv_apelido);
+				if (apCheck == 0){
+					sprintf(resp, "error");
+					send(connfd, resp, strlen(resp), 0);
+					memset(&recv_apelido, '\0', 51);
+				}
+				else{
+					sprintf(resp, "check");
+					send(connfd, resp, strlen(resp), 0);
+					break;
+				}
+			}
+			while (apCheck == 0);
+		}
 
 		/* Configurar cliente */
 		client_t *cli = (client_t *)malloc(sizeof(client_t));
 		cli->address = cli_addr;
 		cli->sockfd = connfd;
 		cli->uid = uid++;
+		sprintf(cli->name, "%s", recv_apelido);
+
+		memset(&recv_apelido, '\0', 51);
+
 
 		/* Adicionar cliente na fila */
 		queue_add(cli);
