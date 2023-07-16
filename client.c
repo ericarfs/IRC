@@ -133,6 +133,7 @@ int main(int argc, char **argv){
 			return EXIT_FAILURE;
 	}
 
+	// Informar apelido que vai usar no servidor
 	char apelido[100];
 	while(1){
 		printf("Digite '/nickname' e informe o seu apelido (sem espaços) > ");
