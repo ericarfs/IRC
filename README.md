@@ -4,6 +4,7 @@
 ## Autores: 
 
 - Érica Ribeiro F. dos Santos — 11836351
+- Vinícus R. Ribeiro — 9779440
 
 ### Sistema utilizado: 
 > Manjaro Linux 21.2.6
