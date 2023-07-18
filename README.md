@@ -1,5 +1,5 @@
 # Projeto IRC - Rede de Computadores
-### Projeto da implementação de 
+### Projeto da implementação de Cliente e Servidor IRC
 
 ## Autores: 
 
