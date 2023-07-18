@@ -33,13 +33,14 @@ typedef struct{
 	int onChannel;
 	int channelId;
 	int isAdmin;
+	int isMuted;
 } client_t;
 
 client_t *clients[MAX_CLIENTS];
 
 // Estrutura do canal
 typedef struct{
-	client_t *clients_chan[MAX_CLIENTS];
+	client_t *clients_ch[MAX_CLIENTS];
 	char chan_name[200];
 	char admin_name[51];
 	char mode[2];
@@ -54,7 +55,13 @@ channel_t *canais[MAX_CANAIS];
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-void print_client_addr(struct sockaddr_in addr){
+void print_client_addr(struct sockaddr_in addr, char *endereco){
+	sprintf(endereco,"%d.%d.%d.%d",
+        addr.sin_addr.s_addr & 0xff,
+        (addr.sin_addr.s_addr & 0xff00) >> 8,
+        (addr.sin_addr.s_addr & 0xff0000) >> 16,
+        (addr.sin_addr.s_addr & 0xff000000) >> 24);
+
     printf("%d.%d.%d.%d",
         addr.sin_addr.s_addr & 0xff,
         (addr.sin_addr.s_addr & 0xff00) >> 8,
@@ -178,8 +185,11 @@ int checkApelido(char *s){
 
 //Função responsável pela criação e inserção de clientes em um canal
 int joinChannel(char *nomeCanal, client_t *cli){
+	int tam = strlen(nomeCanal);
+	printf("len:%d\n",tam);
 	//Verifica se o nome é válido
-	if (nomeCanal[0] != '&' && nomeCanal[0] != '#'){
+	if ((nomeCanal[0] != '&' && nomeCanal[0] != '#' )
+	|| (strlen(nomeCanal) <2 || strlen(nomeCanal) >200)){
         return 9; //indica que o nome é inválido
     }
 
@@ -196,7 +206,6 @@ int joinChannel(char *nomeCanal, client_t *cli){
 		}
 	}
 
-
     //Se canal não existe, criar ele
     if (canalExiste == 0){
         //Configurar canal
@@ -206,11 +215,11 @@ int joinChannel(char *nomeCanal, client_t *cli){
         sprintf(chan->admin_name, "%s", cli->name); 
         chan->num_users = 1;
         sprintf(chan->mode, "+p"); 
-        chan->clients_chan[0] = cli;
+        chan->clients_ch[0] = cli;
 
 		//Outros cliente apontam como nulo
 		for (int k = 1;k<MAX_CLIENTS;k++){
-        	chan->clients_chan[k] = NULL;
+        	chan->clients_ch[k] = NULL;
 		}
 			
 
@@ -232,8 +241,8 @@ int joinChannel(char *nomeCanal, client_t *cli){
 		if (canais[i]->mode[1] != 'i'){
 			cli->channelId = i;
 			for(int k=0; k < MAX_CLIENTS; ++k){
-				if(!canais[i]->clients_chan[k]){
-					canais[i]->clients_chan[k] = cli;
+				if(!canais[i]->clients_ch[k]){
+					canais[i]->clients_ch[k] = cli;
 					break;
 				}
 			}
@@ -253,8 +262,8 @@ int leaveChannel(client_t *cli, int i){
 	//retirar cliente do canal
 	int k;
 	for(k=0; k < MAX_CLIENTS; ++k){
-		if(canais[i]->clients_chan[k] == cli){
-			canais[i]->clients_chan[k] = NULL;
+		if(canais[i]->clients_ch[k] == cli){
+			canais[i]->clients_ch[k] = NULL;
 			break;
 		}
 	}
@@ -269,13 +278,13 @@ int leaveChannel(client_t *cli, int i){
 
 
 //Função responsável por procurar nome de clientes em um canal
-int findClient(char *nomeKick, int i){
+int findClient(client_t **cl, char *nomeKick){
 	int clientEx = 0;
 	int k;
 	//procurar apelido informado no canal
-	for(k=1; k < MAX_CLIENTS; ++k){
-		if (canais[i]->clients_chan[k]){
-			if(strcmp(canais[i]->clients_chan[k]->name, nomeKick) == 0){
+	for(k=0; k < MAX_CLIENTS; ++k){
+		if (cl[k]){
+			if(strcmp(cl[k]->name, nomeKick) == 0){
 				clientEx = 1;
 				break;
 			}
@@ -301,11 +310,10 @@ void *handle_client(void *arg){
 	int leave_flag = 0;
 
 	cli_count++;
-	printf("%d\n",cli_count);
 	client_t *cli = (client_t *)arg;
 
 	send(cli->sockfd, cli->name, strlen(cli->name), 0);
-	sprintf(buff_out, "\n** %s entrou no chat! **\n", cli->name);
+	sprintf(buff_out, "\n** %s entrou no chat! **\n\n", cli->name);
 	printf("%s", buff_out);
 	send_message(buff_out, cli);
 
@@ -341,37 +349,35 @@ void *handle_client(void *arg){
 					if (strcmp(comando, "/join") == 0){
 						//Verificar se ja está em um canal
 						if (cli->onChannel == 1){
-							sprintf(buff_aux, "\n- Você já está em um canal!\n");
+							sprintf(buff_aux, "\n- Você já está em um canal!\n\n");
 						}
 						else{
 							int join = joinChannel(msg_aux, cli);
-							printf("join? %d\n", join);
 							//Verificar nome do canal
 							if (join == 9){
-								sprintf(buff_aux, "\n- Nome de canal inválido!\n");
-
+								sprintf(buff_aux, "\n- Nome de canal inválido!\n\n");
 							}
 							//Verificar se foi o primeiro a entrar no canal
 							else if (join == 7){
 								cli->onChannel = 1;
 								cli->isAdmin = 1;
-								sprintf(buff_aux, "\n- Você agora administra o canal %s!\n", msg_aux);
+								sprintf(buff_aux, "\n- Você agora administra o canal %s!\n- Comandos:\n * /kick nomeUsuario - Fecha conexao de um usuario especifico\n * /mute nomeUsuario - Faz com que usuario nao possa mandar mensagens\n * /unmute nomeUsuario - Retira mute do usuario\n * /whois nomeUsuario - Retorna endereco IP do usuario\n * /mode modo - Altera o modo do canal (+i: invite only / +p: privado)\n * /invite nomeUsuario - Convida usuario para o canal\n * /list - Lista os comandos\n * /leave - Fecha conexao e encerra canal\n\n", msg_aux);
 
 							}
 							//Verificar se entrou no canal
 							else if (join == 5){
 								//mandar mensagem avisando que entrou no canal
-								sprintf(buff_aux, "\n** %s entrou no canal! **\n", cli->name);
+								sprintf(buff_aux, "\n** %s entrou no canal! **\n\n", cli->name);
 								send_message(buff_aux, cli);
 								bzero(buff_aux, BUFFER_SZ);
 
 								cli->onChannel = 1;
-								sprintf(buff_aux, "\n- Você agora faz parte do canal %s!\n- Para sair, digite: /leave!\n", msg_aux);
+								sprintf(buff_aux, "\n- Você agora faz parte do canal %s!\n- Para sair, digite: /leave!\n\n", msg_aux);
 
 							}
 							//Verificar se entrou no canal
 							else if (join == 3){
-								sprintf(buff_aux, "\n- Você não pode entrar nesse canal!\n");
+								sprintf(buff_aux, "\n- Você não pode entrar nesse canal!\n\n");
 
 							}
 						}
@@ -380,32 +386,33 @@ void *handle_client(void *arg){
 					else if (strcmp(comando, "/kick") == 0){
 						//Verificar se é admin de algum canal
 						if (cli->isAdmin == 0){
-							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n");
+							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n\n");
 						}
 						else {	
 							int i = cli->channelId;
+							//Verificar se o admin escreveu o proprio apelido
 							if (strcmp(canais[i]->admin_name, msg_aux) == 0){
-								sprintf(buff_aux, "\n- Você não pode se remover do próprio canal. Para sair, digite: /leave!\n");
+								sprintf(buff_aux, "\n- Você é admin do canal. Para sair, digite: /leave!\n\n");
 							}
 							else{
-								int kick = findClient(msg_aux, i); // procurar cliente no canal
+								int kick = findClient(canais[i]->clients_ch, msg_aux); // procurar cliente no canal
 								//Cliente não encontrado
 								if (kick == -1){
-									sprintf(buff_aux, "\n- %s não está no canal!\n", msg_aux);
+									sprintf(buff_aux, "\n- %s não está no canal!\n\n", msg_aux);
 								}
 								//Cliente encontrado
 								else{
 									//Informar cliente que ele foi removido
-									sprintf(buff_aux, "\n- Você foi removido do canal!\n");
-									send(canais[i]->clients_chan[kick]->sockfd, buff_aux, strlen(buff_aux),0);
+									sprintf(buff_aux, "\n- Você foi removido do canal!\n\n");
+									send(canais[i]->clients_ch[kick]->sockfd, buff_aux, strlen(buff_aux),0);
 									bzero(buff_aux, BUFFER_SZ);
 
 									//Remover cliente e informar aos outros do canal
-									sprintf(buff_aux, "\n- %s foi removido do canal!\n", msg_aux);
+									sprintf(buff_aux, "\n- %s foi removido do canal!\n\n", msg_aux);
 									
-									canais[i]->clients_chan[kick]->onChannel = 0;
-									canais[i]->clients_chan[kick]->channelId = -1;
-									canais[i]->clients_chan[kick] = NULL; // remover cliente do canal
+									canais[i]->clients_ch[kick]->onChannel = 0;
+									canais[i]->clients_ch[kick]->channelId = -1;
+									canais[i]->clients_ch[kick] = NULL; // remover cliente do canal
 									canais[i]->num_users--;
 
 									send_message(buff_aux, cli); //informar outros clientes do canal
@@ -419,19 +426,40 @@ void *handle_client(void *arg){
 					else if (strcmp(comando, "/mute") == 0){
 						//Verificar se é admin de algum canal
 						if (cli->isAdmin == 0){
-							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n");
+							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n\n");
 						}
 					
 						else{
 							int i = cli->channelId;
-							int kick = findClient(msg_aux, i); // procurar cliente no canal
-							//Cliente não encontrado
-							if (kick == -1){
-								sprintf(buff_aux, "\n- %s não está no canal!\n", msg_aux);
+							//Verificar se o admin escreveu o proprio apelido
+							if (strcmp(canais[i]->admin_name, msg_aux) == 0){
+								sprintf(buff_aux, "\n- Você é admin do canal, não pode ser mutado!\n\n");
 							}
-							//Cliente encontrado
 							else{
-								//muteClient(msg_aux, cli->uid);
+								int mute = findClient(canais[i]->clients_ch, msg_aux); // procurar cliente no canal
+								//Cliente não encontrado
+								if (mute == -1){
+									sprintf(buff_aux, "\n- %s não está no canal!\n\n", msg_aux);
+								}
+								
+								//Cliente encontrado
+								else{
+									//Verifica se cliente está mutado
+									int isMuted = canais[i]->clients_ch[mute]->isMuted;
+									if (isMuted == 1){
+										sprintf(buff_aux, "\n- %s já está mutado!\n\n", msg_aux);
+									}
+									//Mutar cliente
+									else{
+										canais[i]->clients_ch[mute]->isMuted = 1;
+										sprintf(buff_aux, "\n- Você foi mutado!\n\n");
+
+										send(canais[i]->clients_ch[mute]->sockfd, buff_aux, strlen(buff_aux),0);
+
+										bzero(buff_aux, BUFFER_SZ);
+										sprintf(buff_aux, "\n- %s foi mutado!\n\n", msg_aux);
+									}
+								}
 							}
 						}
 
@@ -440,28 +468,177 @@ void *handle_client(void *arg){
 					else if (strcmp(comando, "/unmute") == 0){
 						//Verificar se é admin de algum canal
 						if (cli->isAdmin == 0){
-							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n");
+							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n\n");
 						}
 						
 						else{
 							int i = cli->channelId;
-							int kick = findClient(msg_aux, i); // procurar cliente no canal
-							//Cliente não encontrado
-							if (kick == -1){
-								sprintf(buff_aux, "\n- %s não está no canal!\n", msg_aux);
+							//Verificar se o admin escreveu o proprio apelido
+							if (strcmp(canais[i]->admin_name, msg_aux) == 0){
+								sprintf(buff_aux, "\n- Você é admin do canal, não pode ser mutado!\n\n");
 							}
-							//Cliente encontrado
 							else{
-								//muteClient(msg_aux, cli->uid);
+								int unmute = findClient(canais[i]->clients_ch, msg_aux); // procurar cliente no canal
+								//Cliente não encontrado
+								if (unmute == -1){
+									sprintf(buff_aux, "\n- %s não está no canal!\n\n", msg_aux);
+								}
+								//Cliente encontrado
+								else{
+									//Verifica se cliente está mutado
+									int isMuted = canais[i]->clients_ch[unmute]->isMuted;
+									if (isMuted == 0){
+										sprintf(buff_aux, "\n- %s não está mutado!\n\n", msg_aux);
+									}
+									//Desmutar cliente
+									else{
+										canais[i]->clients_ch[unmute]->isMuted = 0;
+										sprintf(buff_aux, "\n- Você foi desmutado!\n\n");
+
+										send(canais[i]->clients_ch[unmute]->sockfd, buff_aux, strlen(buff_aux),0);
+
+										bzero(buff_aux, BUFFER_SZ);
+										sprintf(buff_aux, "\n- %s foi desmutado!\n\n", msg_aux);
+									}
+								}
 							}
 						}
 						send(cli->sockfd, buff_aux, strlen(buff_aux),0);
 
 					} 
+					else if (strcmp(comando, "/whois") == 0){
+						//Verificar se é admin de algum canal
+						if (cli->isAdmin == 0){
+							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n\n");
+						}
+						else{
+							int i = cli->channelId;
+							//Verificar se o admin escreveu o proprio apelido
+							if (strcmp(canais[i]->admin_name, msg_aux) == 0){
+								char endereco[16];
+								print_client_addr(cli->address, endereco);
+								sprintf(buff_aux, "\n- Seu IP é: %s!\n\n", endereco);
+							}
+							else{
+								int end = findClient(canais[i]->clients_ch, msg_aux); // procurar cliente no canal
+								//Cliente não encontrado
+								if (end == -1){
+									sprintf(buff_aux, "\n- %s não está no canal!\n\n", msg_aux);
+								}
+								//Cliente encontrado
+								else{
+									char endereco[16];
+									print_client_addr(canais[i]->clients_ch[end]->address, endereco);
+									sprintf(buff_aux, "\n- O IP de %s é: %s!\n\n", msg_aux, endereco);
+								}
+							}
+						}
+						send(cli->sockfd, buff_aux, strlen(buff_aux),0);
+
+					}
+
+					else if (strcmp(comando, "/mode") == 0){
+						//Verificar se é admin de algum canal
+						if (cli->isAdmin == 0){
+							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n\n");
+						}
+						else{
+							int indice = cli->channelId;
+							//modo invite only
+							if (strcmp(msg_aux,"+i")==0){
+								if (canais[indice]->mode[1] != 'i'){
+									canais[indice]->mode[1] = 'i';
+									sprintf(buff_aux, "\n- O seu canal agora é invite only!\n\n");
+								}
+								else{
+									sprintf(buff_aux, "\n- O seu canal já é invite only!\n\n");
+								}
+							}
+							//modo privado (padrão)
+							else if (strcmp(msg_aux,"+p")==0){
+								if (canais[indice]->mode[1] != 'p'){
+									canais[indice]->mode[1] = 'p';
+									sprintf(buff_aux, "\n- O seu canal agora é privado!\n\n");
+								}
+								else{
+									sprintf(buff_aux, "\n- O seu canal já é privado!\n\n");
+								}
+							}
+							
+							
+						}
+						send(cli->sockfd, buff_aux, strlen(buff_aux),0);
+					}
+
+					else if (strcmp(comando, "/invite") == 0){
+						//Verificar se é admin de algum canal
+						if (cli->isAdmin == 0){
+							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n\n");
+						}
+					
+						else{
+							int i = cli->channelId;
+							//Verificar se o admin escreveu o proprio apelido
+							if (strcmp(canais[i]->admin_name, msg_aux) == 0){
+								sprintf(buff_aux, "\n- Você é admin do canal, não pode se convidar!\n\n");
+							}
+							else{
+								int find = findClient(clients, msg_aux); // procurar cliente no servidor
+								//Cliente não encontrado
+								if (find == -1){
+									sprintf(buff_aux, "\n- %s não está no servidor!\n\n", msg_aux);
+								}
+								//Cliente encontrado
+								else{
+									//verificar se cliente ja esta em um canal
+									if (clients[find]->onChannel == 1){
+										sprintf(buff_aux, "\n- %s já está em um canal!\n\n", msg_aux);
+									}
+									else{
+										//adicionar cliente no canal
+										clients[find]->channelId = i;
+										for(int k=0; k < MAX_CLIENTS; ++k){
+											if(!canais[i]->clients_ch[k]){
+												canais[i]->clients_ch[k] = clients[find];
+												clients[find]->onChannel = 1;
+												break;
+											}
+										}											
+										canais[i]->num_users++;
+
+										//mandar mensagem avisando que entrou no canal
+										sprintf(buff_aux, "\n** %s entrou no canal! **\n\n", clients[find]->name);
+										send_message(buff_aux, cli);
+										bzero(buff_aux, BUFFER_SZ);
+
+										sprintf(buff_aux, "\n- %s convidou você para o canal %s!\n- Para sair, digite: /leave!\n\n", cli->name, canais[i]->chan_name);
+
+										send(clients[find]->sockfd, buff_aux, strlen(buff_aux),0);
+
+										bzero(buff_aux, BUFFER_SZ);
+
+										sprintf(buff_aux, "\n- Você convidou %s para o canal %s!\n\n", msg_aux, canais[i]->chan_name);
+									}
+								}
+							}
+						}
+
+						send(cli->sockfd, buff_aux, strlen(buff_aux),0);
+					} 
+					else if (strcmp(comando, "/list") == 0){
+						//Verificar se é admin de algum canal
+						if (cli->isAdmin == 0){
+							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n\n");
+						}
+						else{
+							sprintf(buff_aux, "\n- Comandos:\n * /kick nomeUsuario - Fecha conexao de um usuario especifico\n * /mute nomeUsuario - Faz com que usuario nao possa mandar mensagens\n * /unmute nomeUsuario - Retira mute do usuario\n * /whois nomeUsuario - Retorna endereco IP do usuario\n * /mode modo - Altera o modo do canal (+i: invite only / +p: privado)\n * /invite nomeUsuario - Convida usuario para o canal\n * /list - Lista os comandos\n * /leave - Fecha conexao e encerra canal\n\n");
+						}
+						send(cli->sockfd, buff_aux, strlen(buff_aux),0);
+					}
 					else if (strcmp(comando, "/leave") == 0){
 						//Verificar se realmente está em um canal
 						if (cli->onChannel == 0){
-							sprintf(buff_aux, "\n- Você não está em nenhum canal!\n");
+							sprintf(buff_aux, "\n- Você não está em nenhum canal!\n\n");
 						}
 						else{
 							int i = cli->channelId;
@@ -470,21 +647,21 @@ void *handle_client(void *arg){
 							//Se o administrador saiu do canal, ele é encerrado
 							if (leave == 0){
 								//informar encerramento aos outros clientes do canal
-								sprintf(buff_aux, "\n** @%s encerrou o canal! **\n", cli->name);
+								sprintf(buff_aux, "\n** @%s encerrou o canal! **\n\n", cli->name);
 								send_message(buff_aux, cli);
 								bzero(buff_aux, BUFFER_SZ);
 
 								//atualizar informações
 								cli->onChannel = 0;
 								cli->channelId = -1;
-								sprintf(buff_aux, "\n- Você encerrou o canal!\n");
+								sprintf(buff_aux, "\n- Você encerrou o canal!\n\n");
 
 								//Atualizar informações dos outros clientes
 								for (int k = 1;k<MAX_CLIENTS;k++){
-									if (canais[i]->clients_chan[k]){
-										canais[i]->clients_chan[k]->onChannel = 0;
-										canais[i]->clients_chan[k]->channelId = -1;
-										canais[i]->clients_chan[k] = NULL;
+									if (canais[i]->clients_ch[k]){
+										canais[i]->clients_ch[k]->onChannel = 0;
+										canais[i]->clients_ch[k]->channelId = -1;
+										canais[i]->clients_ch[k] = NULL;
 									}
 								}
 
@@ -493,52 +670,20 @@ void *handle_client(void *arg){
 							}
 							else{
 								//informar saida aos outros clientes do canal
-								sprintf(buff_aux, "\n** %s saiu do canal! **\n", cli->name);
+								sprintf(buff_aux, "\n** %s saiu do canal! **\n\n", cli->name);
 								send_message(buff_aux, cli);
 								bzero(buff_aux, BUFFER_SZ);
 
 								//atualizar informações
 								cli->onChannel = 0;
 								cli->channelId = -1;
-								sprintf(buff_aux, "\n- Você saiu do canal!\n");
+								sprintf(buff_aux, "\n- Você saiu do canal!\n\n");
 							}
 						}
 						// se o cliente era admin, deixa de ser quando sai
 						cli->isAdmin = 0; 
 						send(cli->sockfd, buff_aux, strlen(buff_aux),0);		
 					} 
-					else if (strcmp(comando, "/mode") == 0){
-						//Verificar se é admin de algum canal
-						if (cli->isAdmin == 0){
-							sprintf(buff_aux, "\n- Você não é admin de nenhum canal!\n");
-						}
-						else{
-							int indice = cli->channelId;
-							//modo invite only
-							if (strcmp(msg_aux,"+i")==0){
-								if (canais[indice]->mode[1] != 'i'){
-									canais[indice]->mode[1] = 'i';
-									sprintf(buff_aux, "\n- O seu canal agora é invite only!\n");
-								}
-								else{
-									sprintf(buff_aux, "\n- O seu canal já é invite only!\n");
-								}
-							}
-							//modo privado (padrão)
-							else if (strcmp(msg_aux,"+p")==0){
-								if (canais[indice]->mode[1] != 'p'){
-									canais[indice]->mode[1] = 'p';
-									sprintf(buff_aux, "\n- O seu canal agora é privado!\n");
-								}
-								else{
-									sprintf(buff_aux, "\n- O seu canal já é privado!\n");
-								}
-							}
-							
-							
-						}
-						send(cli->sockfd, buff_aux, strlen(buff_aux),0);
-					}
 					else{
 						// Mensagens de admin começam com @ no nome dele
 						if (cli->isAdmin == 1){
@@ -558,7 +703,7 @@ void *handle_client(void *arg){
 			}
 			
 		} else if (receive == 0){
-			sprintf(buff_out, "\n** %s saiu do chat! **\n", cli->name);
+			sprintf(buff_out, "\n** %s saiu do chat! **\n\n", cli->name);
 			printf("%s", buff_out);
 			send_message(buff_out, cli);
 			leave_flag = 1;
@@ -677,6 +822,7 @@ int main(int argc, char **argv){
 		cli->onChannel = 0;
 		cli->channelId = -1;
 		cli->isAdmin = 0;
+		cli->isMuted = 0;
 		sprintf(cli->name, "%s", recv_apelido);
 
 		memset(&recv_apelido, '\0', 51);

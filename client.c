@@ -71,7 +71,7 @@ void recv_msg_handler() {
 			printf("%s", message);
 			str_overwrite_stdout();
 		} else if (receive == 0) {
-				break;
+			break;
 		} 
 		memset(message, 0, sizeof(message));
 		
@@ -185,7 +185,8 @@ int main(int argc, char **argv){
 
 		printf("\n\n>>> SALA DE BATE PAPO <<<\n\n");
 		printf("- Para sair do chat, digite: /quit ou pressione Ctrl + D\n");
-		printf("- Para entrar em um canal, digite: /join e o nome do canal\n\n");
+		printf("- Para entrar em um canal, digite: /join nomeCanal\n");
+		printf("- Digite /ping para receber resposta do servidor\n\n");
 
 		pthread_t send_msg_thread;
 		if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
