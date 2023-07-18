@@ -196,8 +196,7 @@ int joinChannel(char *nomeCanal, client_t *cli){
 		}
 	}
 
-	printf("Nome? %s\n", nomeCanal);
-	printf("Canal? %d\n", canalExiste);
+
     //Se canal não existe, criar ele
     if (canalExiste == 0){
         //Configurar canal
