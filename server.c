@@ -14,8 +14,8 @@
 #include "utils.c" 
 
 
-#define MAX_CLIENTS 3 //quantidade maxima de cliente
-#define MAX_CANAIS 3 //quantidade maxima de canais
+#define MAX_CLIENTS 4 //quantidade maxima de clientes
+#define MAX_CANAIS 5 //quantidade maxima de canais
 #define BUFFER_SZ 100000 //buffer auxiliar para mensagens maiores
 #define BUFFER_MAX 100 //tamanho max da mensagem
 
@@ -54,7 +54,7 @@ channel_t *canais[MAX_CANAIS];
 
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
+//Função que printa o endereço IP do cliente informado como parametro
 void print_client_addr(struct sockaddr_in addr, char *endereco){
 	sprintf(endereco,"%d.%d.%d.%d",
         addr.sin_addr.s_addr & 0xff,
@@ -103,8 +103,9 @@ void queue_remove(int uid){
 }
 
 
-//Enviar mensagens para todos os clientes, menos ao que escreveu a mensagem
-// Se cliente estiver em um canal, mensagem só é enviada pra quem tá no mesmo canal
+/*	Enviar mensagens para todos os clientes, menos ao que escreveu a mensagem
+	As mensagens são só enviadas para quem está no mesmo canal que quem enviou
+*/
 void send_message(char *s, client_t *cli){
 	pthread_mutex_lock(&clients_mutex);
 
@@ -170,7 +171,9 @@ void send_private_message(char *s, char *nome){
 }
 
 
-//Função que verifica se o apelido escolhido está disponível
+/*	Função que verifica se o apelido escolhido está disponível
+	Retorna 0, caso apelido ja esteja em uso; caso contrario, retorna 1
+*/
 int checkApelido(char *s){
 	for(int i=0; i<MAX_CLIENTS; ++i){
 		if(clients[i]){
@@ -183,7 +186,10 @@ int checkApelido(char *s){
 }
 
 
-//Função responsável pela criação e inserção de clientes em um canal
+/*	Função responsável pela criação e inserção de clientes em um canal
+	Recebe o nome do canal e o cliente como parametros e retorna valores
+	que serão verificados por quem chamou a função
+*/
 int joinChannel(char *nomeCanal, client_t *cli){
 	int tam = strlen(nomeCanal);
 	printf("len:%d\n",tam);
@@ -257,7 +263,10 @@ int joinChannel(char *nomeCanal, client_t *cli){
 }
 
 
-//Função responsável pela saida de clientes de um canal
+/*	Função responsável pela saida de clientes de um canal
+	Recebe o cliente e o indice do canal como parametros e 
+	retorna a posição do cliente removido no vetor de clientes do canal
+*/
 int leaveChannel(client_t *cli, int i){
 	//retirar cliente do canal
 	int k;
@@ -271,13 +280,17 @@ int leaveChannel(client_t *cli, int i){
 	canais[i]->num_users--;
 
 
-	//retorna a posição do cliente removido no vetor de clientes do canal
+	//posição do cliente removido
 	return k;
 
 }
 
 
-//Função responsável por procurar nome de clientes em um canal
+/*	Função responsável por procurar nome de clientes em um canal
+	Recebe como paremtros o vetor de clientes e o nome procurado e
+	retorna -1, se não encontrar; caso contrario, retorna posição
+	do cliente no vetor
+*/
 int findClient(client_t **cl, char *nomeKick){
 	int clientEx = 0;
 	int k;
@@ -297,13 +310,16 @@ int findClient(client_t **cl, char *nomeKick){
 		return -1;
 	}
 
-	// Se cliente existe, retorna a posição no vetor de clientes do canal
+	// Cliente existe
 	return k; 
 
 }
 
 
-//Função que lida com a comunicação com cada cliente
+/*	Função que lida com a comunicação com cada cliente
+	Todas as mensagens recebidas pelo servidor são verificadas para
+	poder ser executada a ação correta antes de enviar para os clientes
+*/
 void *handle_client(void *arg){
 	char buff_aux[BUFFER_SZ+54];
 	char buff_out[BUFFER_SZ];
