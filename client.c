@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include "utils.c" 
 
 #define LENGTH 100
 #define BUFFER_SZ 100000
@@ -23,19 +24,7 @@ void str_overwrite_stdout() {
 	fflush(stdout);
 }
 
-
-//Funcao que substitui o ultimo caracter de uma string de '\n' por '\0'
-void str_trim_lf (char* arr, int length) {
-	int i;
-	for (i = 0; i < length; i++) { // trim \n
-		if (arr[i] == '\n') {
-			arr[i] = '\0';
-			break;
-		}
-	}
-}
-
-
+ 
 //Função para pegar o ctrl_c
 void sigintHandler(int sig_num){ 
     signal(SIGINT, sigintHandler); 
@@ -61,7 +50,8 @@ void send_msg_handler() {
 		if (strcmp(message, "/quit") == 0) {
 			flag = 1;
 			break;
-		} else {
+		}
+		else{
 			sprintf(buffer, "%s", message);
 			send(sockfd, buffer, strlen(buffer), 0);
 		}
@@ -70,6 +60,7 @@ void send_msg_handler() {
 		bzero(buffer, BUFFER_SZ);
 	}
 }
+
 
 //Função responsável por lidar com o recebimento de mensagens
 void recv_msg_handler() {
@@ -133,78 +124,92 @@ int main(int argc, char **argv){
 			return EXIT_FAILURE;
 	}
 
-	// Informar apelido que vai usar no servidor
-	char apelido[100];
-	while(1){
-		printf("Digite '/nickname' e informe o seu apelido (sem espaços) > ");
 
-		fgets(apelido, 100, stdin);
-		str_trim_lf(apelido, strlen(apelido));
+	char con[6];
+	// Receber resposta do servidor para estabeleciemento de conexao
+	recv(sockfd, con, 6, 0); 
 
-		char aux[10];
-		char nick[51];
-		char *token;
-		token = strtok(apelido, " ");
-		sprintf(aux, "%s", token);
+	// Se a resposta for "error", a conexão é encerrada
+	if (strcmp(con, "error") == 0){
+		printf("Maximo de clientes conectados. Conexao Rejeitada.\n");
+	}
+	else{
+		// Informar apelido que vai usar no servidor
+		char apelido[100];
+		while(1){
+			printf("Digite '/nickname' e informe o seu apelido > ");
 
-		token = strtok(NULL, "");
-		sprintf(nick, "%s", token);
-		str_trim_lf(nick, strlen(nick));
+			fgets(apelido, 100, stdin);
+			str_trim_lf(apelido, strlen(apelido));
+
+			char aux[10];
+			char nick[51];
+
+			//Separar o comando inserido e o apelido 
+			sendCom(apelido, aux, nick);
 
 
-		if (strcmp(aux, "/nickname") != 0){
-			continue;
+			if (strcmp(aux, "/nickname") != 0){
+				continue;
+			}
+			else if (strcmp(nick, "(null)") ==0||strlen(nick) < 2 || strlen(nick)>50){
+				printf("Apelido muito grande ou muito pequeno! \n");
+				continue;
+			}
+
+			// Enviar apelido escolhido pro servidor
+			send(sockfd, nick, strlen(nick), 0);
+
+			char resp[6];
+			// Receber resposta 
+			recv(sockfd, resp, 6, 0);
+
+			//Verificar se o apelido foi aceito
+			if (strcmp(resp, "error") == 0){
+				printf("Apelido inválido! \n");
+			}
+			else{
+				break;
+			}
+
+			memset(&resp, '\0', 6);
+			memset(&aux, '\0', 10);
+			memset(&nick, '\0', 51);
+
+			
 		}
-		else if (strcmp(nick, "(null)") ==0||strlen(nick) < 2 || strlen(nick)>50){
-			printf("Apelido muito grande ou muito pequeno! \n");
-			continue;
-		}
 
-		send(sockfd, nick, strlen(nick), 0);
-
-		char resp[6];
-		// Receber resposta 
-		recv(sockfd, resp, 6, 0);
-
-		if (strcmp(resp, "error") == 0){
-			printf("Apelido inválido! \n");
-		}
-		else{
-			break;
-		}
-
-		bzero(resp, 6);
-		memset(&aux, '\0', 10);
-		memset(&nick, '\0', 51);
-
+		// Receber apelido 
+		recv(sockfd, name, 51, 0);
 		
-	}
 
-	// Receber apelido 
-	recv(sockfd, name, 51, 0);
+		printf("\n\n>>> SALA DE BATE PAPO <<<\n\n");
+		printf("- Para sair do chat, digite: /quit ou pressione Ctrl + D\n");
+		printf("- Para entrar em um canal, digite: /join e o nome do canal\n\n");
+
+		pthread_t send_msg_thread;
+		if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
+			printf("ERROR: pthread\n");
+			return EXIT_FAILURE;
+		}
+
+		pthread_t recv_msg_thread;
+		if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){
+			printf("ERROR: pthread\n");
+			return EXIT_FAILURE;
+		}
+
+		while (1){
+			if(flag){
+				printf("\nAté logo!\n");
+				break;
+			}
+		}
+
+
+
+	}
 	
-
-	printf(">>> SALA DE BATE PAPO <<<\n");
-
-	pthread_t send_msg_thread;
-  	if(pthread_create(&send_msg_thread, NULL, (void *) send_msg_handler, NULL) != 0){
-		printf("ERROR: pthread\n");
-    	return EXIT_FAILURE;
-	}
-
-	pthread_t recv_msg_thread;
-  	if(pthread_create(&recv_msg_thread, NULL, (void *) recv_msg_handler, NULL) != 0){
-		printf("ERROR: pthread\n");
-		return EXIT_FAILURE;
-	}
-
-	while (1){
-		if(flag){
-			printf("\nAté logo!\n");
-			break;
-    	}
-	}
-
 	close(sockfd);
 
 	return EXIT_SUCCESS;
