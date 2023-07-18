@@ -39,7 +39,7 @@ void sendCom(char *entrada, char *comando, char *mensagem){
 	sprintf(comando, "%s", token); // guarda token em comando
 
 	token = strtok(NULL, " "); // separa string entrada a partir da delimitacao
-							   // anterior ate final
+							   // anterior ate final ou espaco
 	sprintf(mensagem, "%s", token); // guarda novo resultado em mensagem
 	str_trim_lf(mensagem, strlen(mensagem)); // remove '/n' da mensagem
 } 

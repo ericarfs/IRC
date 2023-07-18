@@ -17,6 +17,22 @@
 volatile sig_atomic_t flag = 0;
 int sockfd = -1; // descritor de arquivo do socket iniciado com valor invalido
 
+// Funcao para esperar comando de cliente para se conectar ao servidor
+void aguarda_solicitacao_de_conexao()
+{
+    char conectar[10];
+	while(1)
+    {
+		printf("Digite '/connect' para conectar-se ao servidor > ");
+
+		fgets(conectar, 10, stdin);
+		str_trim_lf(conectar, strlen(conectar));
+
+		if(strcmp(conectar, "/connect") == 0) break;
+		
+	}	
+}
+
 // Funcao para criar e configurar socket
 void cria_e_configura_socket(char ip[11], int port, struct sockaddr_in *addr)
 {
@@ -34,22 +50,6 @@ void cria_e_configura_socket(char ip[11], int port, struct sockaddr_in *addr)
 	(*addr).sin_family = AF_INET;
 	(*addr).sin_addr.s_addr = inet_addr(ip);
 	(*addr).sin_port = port;
-}
-
-// Funcao para esperar comando de cliente para se conectar ao servidor
-void aguarda_solicitacao_de_conexao()
-{
-    char conectar[10];
-	while(1)
-    {
-		printf("Digite '/connect' para conectar-se ao servidor > ");
-
-		fgets(conectar, 10, stdin);
-		str_trim_lf(conectar, strlen(conectar));
-
-		if(strcmp(conectar, "/connect") == 0) break;
-		
-	}	
 }
 
 // Funcao para conectar ao servidor
