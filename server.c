@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <time.h>
-#include "utils.c" 
+#include "utils.h" 
 
 
 #define MAX_CLIENTS 4 //quantidade maxima de clientes
