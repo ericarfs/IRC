@@ -1,6 +1,8 @@
 # Projeto IRC - Rede de Computadores
 ### Projeto da implementação de Cliente e Servidor IRC
 
+- Video explicando a aplicação: https://drive.google.com/file/d/199UFaQ9VH2RuQCcqay8Ddd35-mkBphFu/view?usp=sharing
+
 ## Autores: 
 
 - Érica Ribeiro F. dos Santos — 11836351
