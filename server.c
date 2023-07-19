@@ -14,10 +14,10 @@
 #include "utils.c" 
 
 
-#define MAX_CLIENTS 4 //quantidade maxima de clientes
-#define MAX_CANAIS 5 //quantidade maxima de canais
+#define MAX_CLIENTS 100 //quantidade maxima de clientes
+#define MAX_CANAIS 100 //quantidade maxima de canais
 #define BUFFER_SZ 100000 //buffer auxiliar para mensagens maiores
-#define BUFFER_MAX 100 //tamanho max da mensagem
+#define BUFFER_MAX 4096 //tamanho max da mensagem
 
 
 static _Atomic unsigned int cli_count = 0;
