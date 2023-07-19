@@ -11,13 +11,13 @@
 #include <sys/types.h>
 #include <signal.h>
 #include <time.h>
-#include "utils.h" 
+#include "utils.c" 
 
 
-#define MAX_CLIENTS 100 //quantidade maxima de clientes
-#define MAX_CANAIS 100 //quantidade maxima de canais
+#define MAX_CLIENTS 4 //quantidade maxima de clientes
+#define MAX_CANAIS 5 //quantidade maxima de canais
 #define BUFFER_SZ 100000 //buffer auxiliar para mensagens maiores
-#define BUFFER_MAX 4096 //tamanho max da mensagem
+#define BUFFER_MAX 100 //tamanho max da mensagem
 
 
 static _Atomic unsigned int cli_count = 0;
@@ -124,6 +124,27 @@ void send_message(char *s, client_t *cli){
 }
 
 
+
+/*	Enviar mensagem de entrada no chat para todos os clientes
+*/
+void entered_chat(char *s, client_t *cli){
+	pthread_mutex_lock(&clients_mutex);
+
+	for(int i=0; i<MAX_CLIENTS; ++i){
+		if(clients[i]){
+			if(clients[i]->uid != cli->uid){
+				if(write(clients[i]->sockfd, s, strlen(s)) < 0){
+					perror("ERRO: Falha ao enviar mensagem!");
+					break;
+				}				
+			}
+		}
+	}
+
+	pthread_mutex_unlock(&clients_mutex);
+}
+
+
 //Enviar mensagens para um cliente específico
 void send_private_message(char *s, char *nome){
 	pthread_mutex_lock(&clients_mutex);
@@ -192,7 +213,7 @@ int checkApelido(char *s){
 */
 int joinChannel(char *nomeCanal, client_t *cli){
 	int tam = strlen(nomeCanal);
-	printf("len:%d\n",tam);
+
 	//Verifica se o nome é válido
 	if ((nomeCanal[0] != '&' && nomeCanal[0] != '#' )
 	|| (strlen(nomeCanal) <2 || strlen(nomeCanal) >200)){
@@ -214,6 +235,12 @@ int joinChannel(char *nomeCanal, client_t *cli){
 
     //Se canal não existe, criar ele
     if (canalExiste == 0){
+
+		//verificar se ja foi preenchido o maximo de canais
+		if (chan_count == MAX_CANAIS){
+			return 8;
+		}
+
         //Configurar canal
         channel_t *chan = (channel_t *)malloc(sizeof(channel_t));
         sprintf(chan->chan_name, "%s", nomeCanal); 
@@ -331,7 +358,7 @@ void *handle_client(void *arg){
 	send(cli->sockfd, cli->name, strlen(cli->name), 0);
 	sprintf(buff_out, "\n** %s entrou no chat! **\n\n", cli->name);
 	printf("%s", buff_out);
-	send_message(buff_out, cli);
+	entered_chat(buff_out, cli);
 
 
 	bzero(buff_out, BUFFER_SZ);
@@ -372,6 +399,9 @@ void *handle_client(void *arg){
 							//Verificar nome do canal
 							if (join == 9){
 								sprintf(buff_aux, "\n- Nome de canal inválido!\n\n");
+							}
+							else if (join == 8){
+								sprintf(buff_aux, "\n- Número máximo de canais excedido!\n\n");
 							}
 							//Verificar se foi o primeiro a entrar no canal
 							else if (join == 7){
