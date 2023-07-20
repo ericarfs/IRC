@@ -10,7 +10,7 @@
 #include <pthread.h>
 #include "utils.c" 
 
-#define LENGTH 100
+#define LENGTH 4096
 #define BUFFER_SZ 100000
 
 volatile sig_atomic_t flag = 0;
