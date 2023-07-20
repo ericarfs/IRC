@@ -109,16 +109,19 @@ void queue_remove(int uid){
 void send_message(char *s, client_t *cli){
 	pthread_mutex_lock(&clients_mutex);
 
-	for(int i=0; i<MAX_CLIENTS; ++i){
-		if(clients[i]){
-			if(clients[i]->uid != cli->uid && clients[i]->channelId == cli->channelId  && clients[i]->isMuted == 0){
-				if(write(clients[i]->sockfd, s, strlen(s)) < 0){
-					perror("ERRO: Falha ao enviar mensagem!");
-					break;
-				}				
+	if (cli->isMuted == 0){
+		for(int i=0; i<MAX_CLIENTS; ++i){
+			if(clients[i]){
+				if(clients[i]->uid != cli->uid && clients[i]->channelId == cli->channelId){
+					if(write(clients[i]->sockfd, s, strlen(s)) < 0){
+						perror("ERRO: Falha ao enviar mensagem!");
+						break;
+					}				
+				}
 			}
 		}
 	}
+	
 
 	pthread_mutex_unlock(&clients_mutex);
 }
